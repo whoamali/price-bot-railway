@@ -108,15 +108,15 @@ def send_price_message():
         return False
 
     msg = f"""قیمت لحظه‌ای بازار — بروزرسانی خودکار
-صرافی استانبول
-بامجوز رسمی بانک مرکزی
+🔴صرافی استانبول
+✅بامجوز رسمی بانک مرکزی🇮🇷
 
-دلار آمریکا : {format_price(fiat['USD']['price'])} ریال
-یورو : {format_price(fiat['EUR']['price'])} ريال
-پوند انگلیس : {format_price(fiat['GBP']['price'])} ريال
-دلار کانادا : {format_price(fiat['CAD']['price'])} ريال
-یوان چین : {format_price(fiat['CNY']['price'])} ريال
-لیر ترکیه : {format_price(fiat['TRY']['price'])} ريال
+🇺🇸دلار آمریکا : {format_price(fiat['USD']['price'])} ریال🇺🇸
+🇪🇺یورو : {format_price(fiat['EUR']['price'])} ريال🇪🇺
+🏴󠁧󠁢󠁥󠁮󠁧󠁿پوند انگلیس : {format_price(fiat['GBP']['price'])} ريال🏴󠁧󠁢󠁥󠁮󠁧󠁿
+🇨🇦دلار کانادا : {format_price(fiat['CAD']['price'])} ريال🇨🇦
+🇨🇳یوان چین : {format_price(fiat['CNY']['price'])} ريال🇨🇳
+🇹🇷لیر ترکیه : {format_price(fiat['TRY']['price'])} ريال🇹🇷
 
 بیت‌کوین : {format_price(int(crypto['BTC']['price']))} دلار
 اتریوم : {format_price(int(crypto['ETH']['price']))} دلار

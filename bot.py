@@ -4,11 +4,10 @@ import telebot
 from bs4 import BeautifulSoup
 import os
 from dotenv import load_dotenv
+import pytz
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Get token and channel from .env
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
@@ -18,150 +17,77 @@ if not TOKEN or not CHANNEL_ID:
 
 bot = telebot.TeleBot(TOKEN)
 
+IRAN_TZ = pytz.timezone('Asia/Tehran')
+
 def get_persian_date_time():
-    now = jdatetime.datetime.now()
-    return now.strftime("%Y/%m/%d"), now.strftime("%H:%M")
+    now_iran = datetime.now(IRAN_TZ)
+    jdate = jdatetime.datetime.fromgregorian(datetime=now_iran)
+    return jdate.strftime("%Y/%m/%d"), now_iran.strftime("%H:%M")
 
 def format_price(num):
     return f"{num:,}".replace(",", "٬")
 
-def fetch_fiat_currencies():
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] Fetching currencies from tgju.org...")
-    try:
-        response = requests.get("https://www.tgju.org/currency", headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
-        soup = BeautifulSoup(response.text, "html.parser")
-        table = soup.find("table", class_="data-table market-table market-section-right active")
-        if not table:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] ERROR: Table not found!")
-            return None
-
-        rows = table.find("tbody").find_all("tr")
-        results = {}
-        date_p, time_p = get_persian_date_time()
-
-        for row in rows:
-            th = row.find("th")
-            if not th: continue
-            text = th.get_text(strip=True)
-            clean_text = re.sub(r"[\s\u200C\u200D\u202F]", "", text)
-
-            price_cell = row.find("td", class_="nf")
-            if not price_cell: continue
-            price = int("".join(filter(str.isdigit, price_cell.get_text())))
-
-            if clean_text == "دلار":
-                code = "USD"
-            elif "یورو" in text:
-                code = "EUR"
-            elif "پوند" in text:
-                code = "GBP"
-            elif "کانادا" in clean_text:
-                code = "CAD"
-            elif "یوان" in text or "چین" in text:
-                code = "CNY"
-            elif "لیر" in text or "ترکیه" in text:
-                code = "TRY"
-            else:
-                continue
-
-            if code not in results:
-                results[code] = {"date": date_p, "time": time_p, "price": price}
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] Found {code}: {format_price(price)} IRR")
-
-        required = ["USD", "EUR", "GBP", "CAD", "CNY", "TRY"]
-        if all(c in results for c in required):
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] SUCCESS: All 6 currencies fetched!")
-            return results
-        else:
-            missing = [c for c in required if c not in results]
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] Missing: {missing}")
-            return None
-
-    except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [FIAT] EXCEPTION: {e}")
-        return None
-
-def fetch_crypto():
-    try:
-        data = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd", timeout=15).json()
-        btc = round(float(data["bitcoin"]["usd"]), 2)
-        eth = round(float(data["ethereum"]["usd"]), 2)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [CRYPTO] Bitcoin: ${format_price(int(btc))} | Ethereum: ${format_price(int(eth))}")
-        d, t = get_persian_date_time()
-        return {"BTC": {"price": btc, "date": d, "time": t}, "ETH": {"price": eth, "date": d, "time": t}}
-    except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [CRYPTO] FAILED: {e}")
-        return None
-
 def send_price_message():
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [SEND] Building message...")
+    print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] [SEND] Building message...")
     fiat = fetch_fiat_currencies()
     crypto = fetch_crypto()
     if not fiat or not crypto:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SEND] FAILED: Incomplete data")
+        print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] [SEND] FAILED: Incomplete data")
         return False
 
-    msg = f"""قیمت لحظه‌ای بازار — بروزرسانی خودکار
-🔴صرافی استانبول
-✅بامجوز رسمی بانک مرکزی🇮🇷
+    update_time_iran = datetime.now(IRAN_TZ).strftime("%H:%M")
 
-🇺🇸دلار آمریکا : {format_price(fiat['USD']['price'])} ریال🇺🇸
-🇪🇺یورو : {format_price(fiat['EUR']['price'])} ريال🇪🇺
-🏴󠁧󠁢󠁥󠁮󠁧󠁿پوند انگلیس : {format_price(fiat['GBP']['price'])} ريال🏴󠁧󠁢󠁥󠁮󠁧󠁿
-🇨🇦دلار کانادا : {format_price(fiat['CAD']['price'])} ريال🇨🇦
-🇨🇳یوان چین : {format_price(fiat['CNY']['price'])} ريال🇨🇳
-🇹🇷لیر ترکیه : {format_price(fiat['TRY']['price'])} ريال🇹🇷
+    msg = f"""قیمت لحظه‌ای بازار — بروزرسانی خودکار
+صرافی استانبول
+بامجوز رسمی بانک مرکزی
+
+دلار آمریکا : {format_price(fiat['USD']['price'])} ریال
+یورو : {format_price(fiat['EUR']['price'])} ريال
+پوند انگلیس : {format_price(fiat['GBP']['price'])} ريال
+دلار کانادا : {format_price(fiat['CAD']['price'])} ريال
+یوان چین : {format_price(fiat['CNY']['price'])} ريال
+لیر ترکیه : {format_price(fiat['TRY']['price'])} ريال
 
 بیت‌کوین : {format_price(int(crypto['BTC']['price']))} دلار
 اتریوم : {format_price(int(crypto['ETH']['price']))} دلار
 
-آخرین بروزرسانی: {fiat['USD']['date']} — {fiat['USD']['time']}
+آخرین بروزرسانی: {fiat['USD']['date']} — {update_time_iran} (به وقت تهران)
 
 کانال رسمی: @istanbuI_exchange"""
 
     try:
         bot.send_message(CHANNEL_ID, msg, disable_web_page_preview=True)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SEND] SUCCESS: Message sent to channel!")
+        print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] [SEND] SUCCESS: Message sent!")
         return True
     except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SEND] TELEGRAM ERROR: {e}")
+        print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] [SEND] TELEGRAM ERROR: {e}")
         return False
 
 def main():
-    print("="*90)
-    print("           TELEGRAM LIVE PRICE BOT — FINAL SECURE VERSION")
-    print("               Settings loaded from .env file")
-    print("        First run = instant update | Then every 30 min (11 AM - 11 PM)")
-    print("="*90)
-
-    # Welcome message
     try:
-        bot.send_message(CHANNEL_ID, "Bot activated successfully!\nFetching first price update...")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SYSTEM] Welcome message sent")
+        bot.send_message(CHANNEL_ID, "ربات با موفقیت فعال شد!\nدر حال دریافت اولین بروزرسانی...")
     except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SYSTEM] Welcome failed: {e}")
+        print(f"[SYSTEM] Welcome failed: {e}")
 
-    # First update — keep trying until success
-    attempt = 0
     while True:
-        attempt += 1
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] [SYSTEM] First update attempt #{attempt}")
         if send_price_message():
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [SYSTEM] FIRST UPDATE SUCCESSFUL! Bot is running smoothly.")
+            print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] اولین بروزرسانی با موفقیت ارسال شد!")
             break
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [SYSTEM] Failed — retrying in 30 seconds...")
         time.sleep(30)
 
-    # Main loop
     while True:
-        hour = datetime.now().hour
-        if 11 <= hour < 23:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [LOOP] Working hours — next update in 30 minutes")
+        hour_iran = datetime.now(IRAN_TZ).hour
+        if 11 <= hour_iran < 23:
+            print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] ساعت کاری — خواب ۳۰ دقیقه")
             time.sleep(1800)
             send_price_message()
         else:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [LOOP] Outside working hours — sleeping until 11 AM")
-            time.sleep(300)
+            next_wake = datetime.now(IRAN_TZ).replace(hour=11, minute=0, second=0, microsecond=0)
+            if next_wake < datetime.now(IRAN_TZ):
+                next_wake = next_wake.replace(day=next_wake.day + 1)
+            sleep_seconds = (next_wake - datetime.now(IRAN_TZ)).total_seconds()
+            print(f"[{datetime.now(IRAN_TZ).strftime('%H:%M:%S')}] خارج از ساعت کاری — خواب تا ساعت ۱۱ صبح ({sleep_seconds/3600:.1f} ساعت)")
+            time.sleep(int(sleep_seconds))
 
 if __name__ == "__main__":
     main()
